@@ -1,22 +1,28 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useSubscription } from "../hooks/useSubscription";
 import { supabase } from "../lib/supabase";
 import type { Inquiry } from "../lib/database.types";
 import StatusBadge from "../components/StatusBadge";
 import {
-  TrendingUp, Users, DollarSign, Activity, Loader2, MessageSquare,
+  TrendingUp, Users, DollarSign, Activity, Loader2, MessageSquare, Clock,
+  Sparkles, BarChart3,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 
 export default function Dashboard() {
-  const { businessId } = useAuth();
+  const { businessId, user: _user } = useAuth();
+  const { plan, usage } = useSubscription();
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
     supabase
       .from("inquiries")
       .select("*")
@@ -60,6 +66,17 @@ export default function Dashboard() {
   const active = inquiries.filter((i) =>
     ["New", "Contacted", "Quoted"].includes(i.status)
   ).length;
+
+  const contactedInquiries = inquiries.filter((i) => i.status !== "New" && i.status_changed_at);
+  const avgTimeToContact = contactedInquiries.length > 0
+    ? Math.round(
+        contactedInquiries.reduce((sum, i) => {
+          const created = new Date(i.created_at).getTime();
+          const changed = new Date(i.status_changed_at!).getTime();
+          return sum + (changed - created) / (1000 * 60 * 60);
+        }, 0) / contactedInquiries.length
+      )
+    : 0;
 
   const statusBreakdown = [
     { status: "New", count: inquiries.filter((i) => i.status === "New").length },
@@ -106,20 +123,44 @@ export default function Dashboard() {
       </div>
     </div>
   );
+  const planBadgeColors: Record<string, string> = {
+    free: "bg-slate-100 text-slate-700",
+    pro: "bg-accent text-white",
+    enterprise: "bg-purple-100 text-purple-700",
+  };
+
+  const usagePercent =
+    usage.inquiryLimit && usage.inquiryLimit > 0
+      ? Math.round((usage.inquiryCount / usage.inquiryLimit) * 100)
+      : 0;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="font-heading text-2xl font-bold text-foreground">
-          Dashboard
-        </h1>
-        <p className="text-secondary mt-1 text-sm">
-          Overview of your business inquiries
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-2xl font-bold text-foreground">
+            Dashboard
+          </h1>
+          <p className="text-secondary mt-1 text-sm">
+            Overview of your business inquiries
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Plan badge */}
+          {plan && (
+            <span
+              className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full ${
+                planBadgeColors[plan.slug] ?? "bg-muted text-foreground"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {plan.name}
+            </span>
+          )}
+        </div>
       </div>
-
       {/* Stats grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <StatCard
           icon={<MessageSquare className="w-5 h-5 text-blue-600" />}
           label="This Month"
@@ -148,8 +189,47 @@ export default function Dashboard() {
           sub="New / Contacted / Quoted"
           color="bg-amber-50"
         />
+        <StatCard
+          icon={<Clock className="w-5 h-5 text-teal-600" />}
+          label="Avg. First Contact"
+          value={avgTimeToContact > 0 ? `${avgTimeToContact}h` : "—"}
+          sub={avgTimeToContact > 0 ? "Average response time" : "No contacted inquiries"}
+          color="bg-teal-50"
+        />
       </div>
 
+      {/* Usage meter card */}
+      {usage.inquiryLimit !== null && (
+        <div className="bg-white rounded-xl border border-border p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-heading text-base font-semibold text-foreground flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-accent" />
+              Inquiry Usage
+            </h2>
+            <span className="text-sm text-secondary">
+              {usage.inquiryCount} / {usage.inquiryLimit} this month
+            </span>
+          </div>
+          <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                usagePercent >= 90
+                  ? "bg-destructive"
+                  : usagePercent >= 70
+                  ? "bg-amber-500"
+                  : "bg-accent"
+              }`}
+              style={{ width: `${Math.min(usagePercent, 100)}%` }}
+            />
+          </div>
+          {!usage.canCreateInquiry && (
+            <p className="text-sm text-destructive mt-2 flex items-center gap-1.5">
+              <span className="font-medium">Limit reached.</span>
+              Upgrade your plan to add more inquiries.
+            </p>
+          )}
+        </div>
+      )}
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         {/* Monthly trend */}

@@ -221,7 +221,17 @@ export default function InquiryModal({ inquiry, open, onClose, onSaved }: Props)
 
             {/* Customer Phone */}
             <div>
-              <label className={labelClass}>Phone Number</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-foreground">Phone Number</label>
+                {inquiry && form.customer_phone && (
+                  <a href={`https://wa.me/${form.customer_phone.replace(/[\s\-\(\)]/g, '')}?text=${encodeURIComponent(form.message)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-all duration-150 cursor-pointer inline-flex items-center gap-1 text-xs"
+                    aria-label="Open in WhatsApp">
+                    <MessageSquare className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
               <input
                 type="text"
                 value={form.customer_phone}

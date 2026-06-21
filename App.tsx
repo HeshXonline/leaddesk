@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import AppShell from "./components/AppShell";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Pricing from "./pages/Pricing";
 import Dashboard from "./pages/Dashboard";
 import Inbox from "./pages/Inbox";
 import Templates from "./pages/Templates";
@@ -15,6 +16,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* Public routes */}
+          <Route path="/pricing" element={<Pricing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
 
@@ -28,7 +30,7 @@ export default function App() {
             </Route>
           </Route>
 
-          {/* Redirect root to dashboard or login */}
+          {/* Redirect root to dashboard */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </AuthProvider>

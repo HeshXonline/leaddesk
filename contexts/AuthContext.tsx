@@ -9,11 +9,21 @@ import {
 import { supabase } from "../lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
+type TeamMemberInfo = {
+  id: string;
+  email: string | null;
+  role: string;
+  invitation_status: string;
+};
+
 type AuthContextType = {
   user: User | null;
   businessId: string | null;
   businessName: string | null;
   loading: boolean;
+  role: string | null;
+  teamMembers: TeamMemberInfo[];
+  isOwner: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   signUp: (
     email: string,
@@ -21,6 +31,7 @@ type AuthContextType = {
     businessName: string
   ) => Promise<{ error?: string; needsConfirmation?: boolean }>;
   signOut: () => Promise<void>;
+  refreshTeam: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,81 +40,125 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMemberInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
 
-  // Ensure user has business info in metadata (for users who signed up via email confirmation)
-  const ensureBusinessMetadata = useCallback(async (currentUser: User) => {
+  const fetchTeamInfo = useCallback(async (currentUser: User, bizId: string) => {
+    // Fetch the user's team member record to get their role
+    const { data: myMember } = await supabase
+      .from("team_members")
+      .select("role")
+      .eq("business_id", bizId)
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (myMember) {
+      setRole(myMember.role);
+    }
+
+    // Fetch all team members
+    const { data: members } = await supabase
+      .from("team_members")
+      .select("id, invited_email, role, invitation_status")
+      .eq("business_id", bizId);
+
+    if (members) {
+      setTeamMembers(
+        members.map((m) => ({
+          id: m.id,
+          email: m.invited_email,
+          role: m.role,
+          invitation_status: m.invitation_status,
+        }))
+      );
+    }
+  }, []);
+
+
+  // Extract business info from user metadata
+  // Central handler for auth user data — stable reference, no deps
+  const handleUserAuth = useCallback(async (currentUser: User) => {
     const meta = currentUser.user_metadata;
     if (meta?.business_id) {
       setBusinessId(meta.business_id);
       setBusinessName(meta.business_name ?? null);
+      await fetchTeamInfo(currentUser, meta.business_id);
       return;
     }
 
-    // Business_id not in metadata yet — look it up from the database
-    const { data: business } = await supabase
+    // Business_id not in metadata yet — look it up from team_members
+    const { data: member } = await supabase
+      .from("team_members")
+      .select("business_id")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+
+    if (member) {
+      const { data: biz } = await supabase
       .from("businesses")
       .select("id, business_name")
-      .eq("owner_email", currentUser.email ?? "")
+      .eq("id", member.business_id)
       .single();
 
-    if (business) {
-      setBusinessId(business.id);
-      setBusinessName(business.business_name);
-      // Also update the user metadata so RLS works
-      await supabase.auth.updateUser({
-        data: {
-          business_id: business.id,
-          business_name: business.business_name,
-        },
-      });
+      if (biz) {
+        setBusinessId(biz.id);
+        setBusinessName(biz.business_name);
+        await fetchTeamInfo(currentUser, biz.id);
+        // Update user metadata so next time we don't need the lookup
+        await supabase.auth.updateUser({
+          data: {
+            business_id: biz.id,
+            business_name: biz.business_name,
+          },
+        });
+      }
     }
-  }, []);
-
-  // Extract business info from user metadata
-  const extractBusinessInfo = useCallback(
-    (currentUser: User | null) => {
-      if (!currentUser) {
-        setBusinessId(null);
-        setBusinessName(null);
-        return;
-      }
-      const meta = currentUser.user_metadata;
-      if (meta?.business_id) {
-        setBusinessId(meta.business_id);
-        setBusinessName(meta.business_name ?? null);
-      } else {
-        // Try to look up from DB
-        ensureBusinessMetadata(currentUser);
-      }
-    },
-    [ensureBusinessMetadata]
-  );
-
-  // Initialize on mount
+  }, [fetchTeamInfo]);
+  // Initialize on mount — run exactly once
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      extractBusinessInfo(currentUser);
-      setLoading(false);
-    });
+    let cancelled = false;
+
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          handleUserAuth(currentUser);
+        }
+        setLoading(false);
+        setAuthInitialized(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoading(false);
+        setAuthInitialized(true);
+      });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        extractBusinessInfo(currentUser);
+        handleUserAuth(currentUser);
       } else {
         setBusinessId(null);
         setBusinessName(null);
+        setRole(null);
+        setTeamMembers([]);
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [extractBusinessInfo]);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -112,9 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (error) return { error: error.message };
 
-    // Ensure business info is loaded (for users who signed up with email confirmation)
     if (data.user) {
-      await extractBusinessInfo(data.user);
+      await handleUserAuth(data.user);
     }
 
     return {};
@@ -130,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/pricing?new=true`,
       },
     });
     if (signUpError) return { error: signUpError.message };
@@ -150,7 +204,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: bizError.message };
     }
 
-    // 3. If session exists (email confirmation disabled), update user metadata immediately
+    // 3. Create owner team_member record
+    const { error: memberError } = await supabase.from("team_members").insert({
+      business_id: business.id,
+      user_id: authData.user.id,
+      role: "owner",
+      invitation_status: "accepted",
+    });
+
+    if (memberError) {
+      await supabase.from("businesses").delete().eq("id", business.id);
+      return { error: memberError.message };
+    }
+
+    // 4. If session exists, update user metadata immediately
     if (authData.session) {
       const { error: metaError } = await supabase.auth.updateUser({
         data: {
@@ -160,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (metaError) {
-        // Try to clean up if metadata update fails
+        await supabase.from("team_members").delete().eq("business_id", business.id);
         await supabase.from("businesses").delete().eq("id", business.id);
         return { error: metaError.message };
       }
@@ -168,15 +235,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return {};
     }
 
-    // 4. No session (email confirmation required).
-    //    Business record already created. When user confirms email and signs in,
-    //    the signIn handler will look up their business_id
+    // 5. No session (email confirmation required)
     return { needsConfirmation: true };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setRole(null);
+    setTeamMembers([]);
   };
+
+  const refreshTeam = useCallback(async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (currentUser && businessId) {
+      await fetchTeamInfo(currentUser, businessId);
+    }
+  }, [businessId, fetchTeamInfo]);
 
   return (
     <AuthContext.Provider
@@ -185,9 +259,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         businessId,
         businessName,
         loading,
+        role,
+        teamMembers,
+        isOwner: role === "owner",
         signIn,
         signUp,
         signOut,
+        refreshTeam,
       }}
     >
       {children}

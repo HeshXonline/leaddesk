@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { useSubscription } from "../hooks/useSubscription";
 import { getInquiries, updateInquiry, type InquiryFilters } from "../lib/api";
 import type { Inquiry, InquiryStatus, InquiryChannel } from "../lib/database.types";
 import StatusBadge from "../components/StatusBadge";
@@ -8,7 +9,7 @@ import InquiryDetail from "../components/InquiryDetail";
 import KanbanBoard from "../components/KanbanBoard";
 import {
   Search, Download, Trash2, MessageSquare, Phone, Users,
-  ChevronDown, ChevronUp, Loader2, Plus, Pencil,
+  ChevronDown, ChevronUp, Loader2, Plus, Pencil, Ban,
 } from "lucide-react";
 import { SiInstagram, SiFacebook } from "react-icons/si";
 
@@ -40,6 +41,7 @@ const channelOptions: InquiryChannel[] = [
 
 export default function Inbox() {
   const { businessId } = useAuth();
+  const { plan: _plan, usage, refresh: _refreshSub } = useSubscription();
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"table" | "kanban">("table");
@@ -54,7 +56,10 @@ export default function Inbox() {
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
 
   const fetchInquiries = useCallback(async () => {
-    if (!businessId) return;
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await getInquiries(businessId, filters);
@@ -101,8 +106,16 @@ export default function Inbox() {
     URL.revokeObjectURL(url);
   };
 
-  const openAddModal = () => { setEditingInquiry(null); setModalOpen(true); };
-  const openEditModal = (inquiry: Inquiry) => { setEditingInquiry(inquiry); setModalOpen(true); };
+  const openAddModal = () => {
+    if (!usage.canCreateInquiry) return;
+    setEditingInquiry(null);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (inq: Inquiry) => {
+    setEditingInquiry(inq);
+    setModalOpen(true);
+  };
 
   const handleSaved = (updated: Inquiry) => {
     setInquiries((prev) => {
@@ -191,8 +204,13 @@ export default function Inbox() {
             <button onClick={() => setViewMode("kanban")}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-150 cursor-pointer ${viewMode === "kanban" ? "bg-white text-foreground shadow-sm" : "text-secondary hover:text-foreground"}`}>Board</button>
           </div>
-          <button onClick={openAddModal} className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-white rounded-lg hover:opacity-90 transition-all duration-150 cursor-pointer text-sm font-medium shadow-sm">
-            <Plus className="w-4 h-4" /> New Inquiry
+          <button onClick={openAddModal}
+            disabled={!usage.canCreateInquiry}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-white rounded-lg hover:opacity-90 transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium shadow-sm"
+            title={!usage.canCreateInquiry ? `Inquiry limit reached (${usage.inquiryCount}/${usage.inquiryLimit})` : "Create new inquiry"}
+          >
+            {!usage.canCreateInquiry ? <Ban className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            New Inquiry
           </button>
           <button onClick={exportCSV} className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-lg hover:opacity-90 transition-all duration-150 cursor-pointer text-sm font-medium shadow-sm">
             <Download className="w-4 h-4" /> Export CSV
@@ -289,7 +307,18 @@ export default function Inbox() {
                     <tr key={inq.id} onClick={() => setSelectedInquiry(inq)} className="hover:bg-muted/50 transition-colors group cursor-pointer">
                       <td className="px-4 py-3.5">
                         <span className="text-sm font-medium text-foreground">{inq.customer_name}</span>
-                        {inq.customer_phone && <span className="text-xs text-secondary ml-2 hidden sm:inline">{inq.customer_phone}</span>}
+                        {inq.customer_phone && (
+                          <>
+                            <span className="text-xs text-secondary ml-2 hidden sm:inline">{inq.customer_phone}</span>
+                            <a href={`https://wa.me/${inq.customer_phone.replace(/[\s\-\(\)]/g, '')}?text=${encodeURIComponent(inq.message || '')}`}
+                              target="_blank" rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="ml-1 p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md transition-all duration-150 inline-flex items-center cursor-pointer"
+                              aria-label={`WhatsApp ${inq.customer_name}`}>
+                              <MessageSquare className="w-3.5 h-3.5" />
+                            </a>
+                          </>
+                        )}
                       </td>
                       <td className="px-4 py-3.5">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${channelColors[inq.channel]}`}>{channelIconMap[inq.channel]} {inq.channel}</span>

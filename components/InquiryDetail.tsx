@@ -204,15 +204,17 @@ export default function InquiryDetail({ inquiry, open, onClose, onUpdated, onDel
             </div>
           </div>
 
-          {/* Contacts */}
           {inquiry.customer_phone && (
             <div className="flex items-center gap-2 text-sm text-foreground">
               <Phone className="w-4 h-4 text-secondary" />
-              <a
-                href={`tel:${inquiry.customer_phone}`}
-                className="text-accent hover:underline"
-              >
+              <a href={`tel:${inquiry.customer_phone}`} className="text-accent hover:underline">
                 {inquiry.customer_phone}
+              </a>
+              <a href={`https://wa.me/${inquiry.customer_phone.replace(/[\s\-\(\)]/g, '')}?text=${encodeURIComponent(inquiry.message)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-md transition-all duration-150 cursor-pointer"
+                aria-label="Open in WhatsApp">
+                <MessageSquare className="w-4 h-4" />
               </a>
             </div>
           )}

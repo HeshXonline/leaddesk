@@ -23,7 +23,10 @@ export default function Templates() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     getTemplates(businessId)
       .then(setTemplates)
