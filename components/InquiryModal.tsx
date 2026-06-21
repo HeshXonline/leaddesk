@@ -12,11 +12,9 @@ import {
   Loader2,
   MessageSquare,
   Phone,
-  Instagram,
-  Facebook,
   Users,
 } from "lucide-react";
-
+import { SiInstagram as Instagram, SiFacebook as Facebook } from "react-icons/si";
 const channelOptions: { value: InquiryChannel; label: string }[] = [
   { value: "WhatsApp", label: "WhatsApp" },
   { value: "Instagram", label: "Instagram" },

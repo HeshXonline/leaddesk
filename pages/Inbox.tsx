@@ -7,9 +7,13 @@ import InquiryModal from "../components/InquiryModal";
 import InquiryDetail from "../components/InquiryDetail";
 import KanbanBoard from "../components/KanbanBoard";
 import {
-  Search, Download, Trash2, MessageSquare, Phone, Instagram, Facebook, Users,
+  Search, Download, Trash2, MessageSquare, Phone, Users,
   ChevronDown, ChevronUp, Loader2, Plus, Pencil,
 } from "lucide-react";
+import { SiInstagram, SiFacebook } from "react-icons/si";
+
+const Instagram = SiInstagram;
+const Facebook = SiFacebook;
 
 const channelIconMap: Record<InquiryChannel, React.ReactNode> = {
   WhatsApp: <MessageSquare className="w-4 h-4" />,

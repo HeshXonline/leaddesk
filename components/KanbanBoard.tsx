@@ -1,7 +1,8 @@
 import { useState, useCallback, type DragEvent } from "react";
 import type { Inquiry, InquiryStatus } from "../lib/database.types";
 import StatusBadge from "./StatusBadge";
-import { MessageSquare, Phone, Instagram, Facebook, Users, GripVertical } from "lucide-react";
+import { MessageSquare, Phone, Users, GripVertical } from "lucide-react";
+import { SiInstagram as Instagram, SiFacebook as Facebook } from "react-icons/si";
 
 const columns: { id: InquiryStatus; label: string }[] = [
   { id: "New", label: "New" },

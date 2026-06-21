@@ -8,16 +8,14 @@ import {
   Loader2,
   MessageSquare,
   Phone,
-  Instagram,
-  Facebook,
   Users,
   Send,
-  ExternalLink,
   Calendar,
   DollarSign,
   FileText,
   ChevronDown,
 } from "lucide-react";
+import { SiInstagram as Instagram, SiFacebook as Facebook } from "react-icons/si";
 
 const channelIconMap: Record<string, React.ReactNode> = {
   WhatsApp: <MessageSquare className="w-4 h-4" />,
