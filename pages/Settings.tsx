@@ -11,7 +11,6 @@ import {
   Check,
   Loader2,
   X,
-  Save,
   Calendar,
   CreditCard,
   Users,
@@ -66,8 +65,8 @@ export default function Settings() {
           setBusiness(data as Business);
           setNameInput((data as Business).business_name);
         }
-      })
-      .finally(() => setLoading(false));
+        setLoading(false);
+      });
   }, [businessId]);
 
   // Fetch team members

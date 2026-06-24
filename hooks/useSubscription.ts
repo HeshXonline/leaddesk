@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getSubscription,
-  getPlans,
   getInquiryUsage,
   getTeamMembers,
-  getInquiries,
 } from "../lib/api";
-import type { Plan, Subscription, TeamMember, Inquiry } from "../lib/database.types";
+import type { Plan, Subscription, TeamMember } from "../lib/database.types";
 
 type UsageInfo = {
   inquiryCount: number;

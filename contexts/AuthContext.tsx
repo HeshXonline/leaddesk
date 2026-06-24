@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<string | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMemberInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authInitialized, setAuthInitialized] = useState(false);
+  const [, setAuthInitialized] = useState(false);
 
   const fetchTeamInfo = useCallback(async (currentUser: User, bizId: string) => {
     // Fetch the user's team member record to get their role

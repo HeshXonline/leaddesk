@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { updateInquiry, getTemplates } from "../lib/api";
 import type { Inquiry, Template } from "../lib/database.types";
-import StatusBadge from "./StatusBadge";
 import {
   X,
   Loader2,
@@ -10,10 +9,7 @@ import {
   Phone,
   Users,
   Send,
-  Calendar,
-  DollarSign,
   FileText,
-  ChevronDown,
 } from "lucide-react";
 import { SiInstagram as Instagram, SiFacebook as Facebook } from "react-icons/si";
 

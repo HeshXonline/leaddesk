@@ -3,9 +3,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { useSubscription } from "../hooks/useSubscription";
 import { supabase } from "../lib/supabase";
 import type { Inquiry } from "../lib/database.types";
+import { computeDashboardMetrics } from "../lib/metrics";
 import StatusBadge from "../components/StatusBadge";
 import {
-  TrendingUp, Users, DollarSign, Activity, Loader2, MessageSquare, Clock,
+  TrendingUp, DollarSign, Activity, Loader2, MessageSquare, Clock,
   Sparkles, BarChart3,
 } from "lucide-react";
 import {
@@ -42,64 +43,18 @@ export default function Dashboard() {
     );
   }
 
-  const now = new Date();
-  const thisMonth = now.getMonth();
-  const thisYear = now.getFullYear();
-
-  const thisMonthInquiries = inquiries.filter((i) => {
-    const d = new Date(i.created_at);
-    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
-  });
-
-  const total = inquiries.length;
-  const thisMonthTotal = thisMonthInquiries.length;
-  const won = inquiries.filter((i) => i.status === "Won").length;
-  const lost = inquiries.filter((i) => i.status === "Lost").length;
-  const conversionRate = total > 0 ? Math.round((won / (won + lost)) * 100) : 0;
-  const avgValue =
-    thisMonthInquiries.filter((i) => i.estimated_value).length > 0
-      ? Math.round(
-          thisMonthInquiries.reduce((s, i) => s + (i.estimated_value ?? 0), 0) /
-            thisMonthInquiries.filter((i) => i.estimated_value).length
-        )
-      : 0;
-  const active = inquiries.filter((i) =>
-    ["New", "Contacted", "Quoted"].includes(i.status)
-  ).length;
-
-  const contactedInquiries = inquiries.filter((i) => i.status !== "New" && i.status_changed_at);
-  const avgTimeToContact = contactedInquiries.length > 0
-    ? Math.round(
-        contactedInquiries.reduce((sum, i) => {
-          const created = new Date(i.created_at).getTime();
-          const changed = new Date(i.status_changed_at!).getTime();
-          return sum + (changed - created) / (1000 * 60 * 60);
-        }, 0) / contactedInquiries.length
-      )
-    : 0;
-
-  const statusBreakdown = [
-    { status: "New", count: inquiries.filter((i) => i.status === "New").length },
-    { status: "Contacted", count: inquiries.filter((i) => i.status === "Contacted").length },
-    { status: "Quoted", count: inquiries.filter((i) => i.status === "Quoted").length },
-    { status: "Won", count: won },
-    { status: "Lost", count: lost },
-  ];
-
-  // Monthly trend (last 6 months)
-  const monthlyData: { month: string; count: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const label = d.toLocaleDateString("en-US", { month: "short" });
-    const count = inquiries.filter((inq) => {
-      const created = new Date(inq.created_at);
-      return (
-        created.getMonth() === d.getMonth() &&
-        created.getFullYear() === d.getFullYear()
-      );
-    }).length;
-    monthlyData.push({ month: label, count });
-  }
+  const {
+    total,
+    thisMonthTotal,
+    won,
+    lost,
+    conversionRate,
+    avgValue,
+    active,
+    avgTimeToContact,
+    statusBreakdown,
+    monthlyData,
+  } = computeDashboardMetrics(inquiries);
 
   const StatCard = ({
     icon,
